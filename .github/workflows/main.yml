@@ -22,10 +22,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS Simulator (Unsigned)
+      - name: Build iOS Simulator (Debug)
         run: |
-          # O build para simulador não exige assinatura e gera um .app funcional
-          flutter build ios --simulator --release
+          # Build debug para simulador não exige assinatura
+          flutter build ios --simulator --debug
           
           mkdir -p build/ios/iphoneos/Payload
           cp -r build/ios/iphonesimulator/Runner.app build/ios/iphoneos/Payload/
