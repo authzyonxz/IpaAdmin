@@ -1,125 +1,195 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Nitro Proxy Admin',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const AdminPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class AdminPage extends StatefulWidget {
+  const AdminPage({Key? key}) : super(key: key);
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<AdminPage> createState() => _AdminPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class _AdminPageState extends State<AdminPage> {
+  int _selectedTabIndex = 0;
+  final String apiUrl = 'http://179.198.97.250:5000';
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Nitro Proxy Admin'),
+        centerTitle: true,
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedTabIndex,
+        children: [
+          StatsTab(apiUrl: apiUrl),
+          UdidsTab(apiUrl: apiUrl),
+          KeysTab(apiUrl: apiUrl),
+          ManagementTab(apiUrl: apiUrl),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedTabIndex,
+        onTap: (index) => setState(() => _selectedTabIndex = index),
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Início'),
+          BottomNavigationBarItem(icon: Icon(Icons.phone_iphone), label: 'UDIDs'),
+          BottomNavigationBarItem(icon: Icon(Icons.vpn_key), label: 'Chaves'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Gerência'),
+        ],
+      ),
     );
+  }
+}
+
+class StatsTab extends StatefulWidget {
+  final String apiUrl;
+  const StatsTab({Key? key, required this.apiUrl}) : super(key: key);
+  @override
+  State<StatsTab> createState() => _StatsTabState();
+}
+
+class _StatsTabState extends State<StatsTab> {
+  late Future<Map<String, dynamic>> _statsFuture;
+  @override
+  void initState() {
+    super.initState();
+    _statsFuture = _fetchStats();
+  }
+  Future<Map<String, dynamic>> _fetchStats() async {
+    final response = await http.get(Uri.parse('${widget.apiUrl}/admin/stats'));
+    return jsonDecode(response.body);
+  }
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _statsFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final stats = snapshot.data!;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildStatCard('Total de Chaves', stats['total_keys']),
+            _buildStatCard('Chaves Ativas', stats['active_keys']),
+            _buildStatCard('Chaves Pendentes', stats['pending_keys']),
+            _buildStatCard('Total de UDIDs', stats['total_udids']),
+          ],
+        );
+      },
+    );
+  }
+  Widget _buildStatCard(String label, dynamic value) {
+    return Card(
+      child: ListTile(
+        title: Text(label),
+        trailing: Text(value.toString(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+class UdidsTab extends StatelessWidget {
+  final String apiUrl;
+  const UdidsTab({Key? key, required this.apiUrl}) : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<dynamic>>(
+      future: http.get(Uri.parse('$apiUrl/admin/udids')).then((r) => jsonDecode(r.body)),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final udids = snapshot.data!;
+        return ListView.builder(
+          itemCount: udids.length,
+          itemBuilder: (context, index) => Card(
+            child: ListTile(
+              title: Text('UDID: ${udids[index]['udid']}'),
+              subtitle: Text('Chave: ${udids[index]['key']}'),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class KeysTab extends StatefulWidget {
+  final String apiUrl;
+  const KeysTab({Key? key, required this.apiUrl}) : super(key: key);
+  @override
+  State<KeysTab> createState() => _KeysTabState();
+}
+
+class _KeysTabState extends State<KeysTab> {
+  final _durationController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(controller: _durationController, decoration: const InputDecoration(labelText: 'Duração (dias)')),
+              TextField(controller: _quantityController, decoration: const InputDecoration(labelText: 'Quantidade')),
+              ElevatedButton(onPressed: () async {
+                await http.post(Uri.parse('${widget.apiUrl}/admin/key/create'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'duration_days': int.parse(_durationController.text), 'quantity': int.parse(_quantityController.text)}));
+                setState(() {});
+              }, child: const Text('GERAR CHAVES')),
+            ],
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<dynamic>>(
+            future: http.get(Uri.parse('${widget.apiUrl}/admin/keys')).then((r) => jsonDecode(r.body)),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final keys = snapshot.data!;
+              return ListView.builder(
+                itemCount: keys.length,
+                itemBuilder: (context, index) => ListTile(
+                  title: Text(keys[index]['key']),
+                  subtitle: Text('Status: ${keys[index]['status']}'),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ManagementTab extends StatelessWidget {
+  final String apiUrl;
+  const ManagementTab({Key? key, required this.apiUrl}) : super(key: key);
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Gerenciamento de Keys Avançado'));
   }
 }
