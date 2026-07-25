@@ -215,22 +215,39 @@ class _KeysTabState extends State<KeysTab> {
     if (_quantityController.text.isEmpty) return;
     setState(() => _isGenerating = true);
     try {
+      // Garantir que duration e quantity sejam enviados como inteiros
       final response = await http.post(
         Uri.parse('${widget.apiUrl}/admin/key/create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'duration': _selectedDuration,
-          'quantity': int.parse(_quantityController.text)
+          'days': _selectedDuration, // Alterado de 'duration' para 'days' conforme padrão comum de backend
+          'count': int.parse(_quantityController.text) // Alterado de 'quantity' para 'count'
         }),
       );
-      if (response.statusCode == 200) {
+      
+      // Se falhar, tentar com os nomes de campos anteriores
+      if (response.statusCode != 200) {
+        final retryResponse = await http.post(
+          Uri.parse('${widget.apiUrl}/admin/key/create'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'duration': _selectedDuration,
+            'quantity': int.parse(_quantityController.text)
+          }),
+        );
+        
+        if (retryResponse.statusCode == 200) {
+          final data = jsonDecode(retryResponse.body);
+          _showKeysModal(data['keys']);
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ${retryResponse.statusCode}: Verifique o Backend')));
+      } else {
         final data = jsonDecode(response.body);
         _showKeysModal(data['keys']);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: ${response.statusCode}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao conectar no servidor')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro de conexão com o servidor')));
     } finally {
       setState(() => _isGenerating = false);
     }
@@ -363,6 +380,8 @@ class _ManagementTabState extends State<ManagementTab> {
             itemCount: keys.length,
             itemBuilder: (context, index) {
               final k = keys[index];
+              final bool isPaused = k['status'] == 'paused';
+              
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
@@ -371,9 +390,9 @@ class _ManagementTabState extends State<ManagementTab> {
                   border: Border.all(color: k['status'] == 'active' ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
                 ),
                 child: ExpansionTile(
-                  leading: Icon(Icons.vpn_key, color: k['status'] == 'active' ? Colors.green : Colors.red),
+                  leading: Icon(Icons.vpn_key, color: k['status'] == 'active' ? Colors.green : (isPaused ? Colors.orange : Colors.red)),
                   title: Text(k['key'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
-                  subtitle: Text('UDID: ${k['udid'] ?? "Livre"}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  subtitle: Text('UDID: ${k['udid'] ?? "Livre"} | Status: ${k['status'].toString().toUpperCase()}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
@@ -381,9 +400,14 @@ class _ManagementTabState extends State<ManagementTab> {
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _actionBtn(Icons.refresh, 'RESET', () => _resetUdid(k['key']), Colors.blue),
-                          _actionBtn(Icons.pause, 'PAUSE', () => _updateStatus(k['key'], 'paused'), Colors.orange),
+                          // Botão dinâmico: Se pausado mostra PLAY, se ativo mostra PAUSE
+                          _actionBtn(
+                            isPaused ? Icons.play_arrow : Icons.pause, 
+                            isPaused ? 'DESPAUSAR' : 'PAUSAR', 
+                            () => _updateStatus(k['key'], isPaused ? 'active' : 'paused'), 
+                            isPaused ? Colors.green : Colors.orange
+                          ),
                           _actionBtn(Icons.block, 'BAN', () => _updateStatus(k['key'], 'banned'), Colors.red),
-                          _actionBtn(Icons.play_arrow, 'ATIVAR', () => _updateStatus(k['key'], 'active'), Colors.green),
                         ],
                       ),
                     )
