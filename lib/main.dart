@@ -159,7 +159,7 @@ class KeysTab extends StatefulWidget {
 }
 
 class _KeysTabState extends State<KeysTab> {
-  final _durationController = TextEditingController(text: '30');
+  int _selectedDuration = 30;
   final _quantityController = TextEditingController(text: '1');
   bool _isGenerating = false;
 
@@ -212,22 +212,25 @@ class _KeysTabState extends State<KeysTab> {
   }
 
   Future<void> _generateKeys() async {
+    if (_quantityController.text.isEmpty) return;
     setState(() => _isGenerating = true);
     try {
       final response = await http.post(
         Uri.parse('${widget.apiUrl}/admin/key/create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'duration': int.parse(_durationController.text),
+          'duration': _selectedDuration,
           'quantity': int.parse(_quantityController.text)
         }),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _showKeysModal(data['keys']);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: ${response.statusCode}')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao gerar chaves')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao conectar no servidor')));
     } finally {
       setState(() => _isGenerating = false);
     }
@@ -242,9 +245,42 @@ class _KeysTabState extends State<KeysTab> {
         children: [
           const Text('GERADOR DE LICENÇAS', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 30),
-          _buildInput('DURAÇÃO (DIAS)', _durationController, Icons.timer),
+          const Text('DURAÇÃO DO ACESSO', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _selectedDuration,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF1E1E1E),
+                items: [1, 7, 30].map((int value) {
+                  return DropdownMenuItem<int>(
+                    value: value,
+                    child: Text('$value DIAS', style: const TextStyle(color: Colors.white)),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedDuration = val!),
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
-          _buildInput('QUANTIDADE', _quantityController, Icons.numbers),
+          const Text('QUANTIDADE DE CHAVES', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _quantityController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.numbers, color: Color(0xFF9C27B0)),
+              filled: true,
+              fillColor: const Color(0xFF1E1E1E),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+            ),
+          ),
           const SizedBox(height: 40),
           _isGenerating
               ? const Center(child: SpinKitThreeBounce(color: Color(0xFF9C27B0), size: 30))
@@ -255,23 +291,9 @@ class _KeysTabState extends State<KeysTab> {
                     minimumSize: const Size(double.infinity, 60),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   ),
-                  child: const Text('GERAR AGORA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Text('GERAR AGORA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                 ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildInput(String label, TextEditingController controller, IconData icon) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF9C27B0)),
-        filled: true,
-        fillColor: const Color(0xFF1E1E1E),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
       ),
     );
   }
@@ -287,61 +309,91 @@ class ManagementTab extends StatefulWidget {
 class _ManagementTabState extends State<ManagementTab> {
   Future<List<dynamic>> _fetchKeys() async {
     final response = await http.get(Uri.parse('${widget.apiUrl}/admin/keys'));
-    return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return [];
   }
 
   Future<void> _updateStatus(String key, String status) async {
-    await http.post(
-      Uri.parse('${widget.apiUrl}/admin/key/$key/status'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'status': status}),
-    );
-    setState(() {});
+    try {
+      final response = await http.post(
+        Uri.parse('${widget.apiUrl}/admin/key/$key/status'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'status': status}),
+      );
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Status atualizado para $status!')));
+        setState(() {});
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao atualizar status')));
+    }
   }
 
   Future<void> _resetUdid(String key) async {
-    await http.post(Uri.parse('${widget.apiUrl}/admin/key/$key/reset_udid'));
-    setState(() {});
+    try {
+      final response = await http.post(Uri.parse('${widget.apiUrl}/admin/key/$key/reset_udid'));
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('UDID resetado com sucesso!')));
+        setState(() {});
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao resetar UDID')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-      future: _fetchKeys(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: SpinKitPulse(color: Color(0xFF9C27B0)));
-        final keys = snapshot.data!;
-        return ListView.builder(
-          padding: const EdgeInsets.all(15),
-          itemCount: keys.length,
-          itemBuilder: (context, index) {
-            final k = keys[index];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(15)),
-              child: ExpansionTile(
-                leading: Icon(Icons.vpn_key, color: k['status'] == 'active' ? Colors.green : Colors.orange),
-                title: Text(k['key'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                subtitle: Text('UDID: ${k['udid'] ?? "Livre"}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _actionBtn(Icons.refresh, 'RESET', () => _resetUdid(k['key']), Colors.blue),
-                        _actionBtn(Icons.pause, 'PAUSE', () => _updateStatus(k['key'], 'paused'), Colors.orange),
-                        _actionBtn(Icons.block, 'BAN', () => _updateStatus(k['key'], 'banned'), Colors.red),
-                        _actionBtn(Icons.play_arrow, 'ATIVAR', () => _updateStatus(k['key'], 'active'), Colors.green),
-                      ],
-                    ),
-                  )
-                ],
-              ),
-            );
-          },
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: () async => setState(() {}),
+      child: FutureBuilder<List<dynamic>>(
+        future: _fetchKeys(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: SpinKitPulse(color: Color(0xFF9C27B0)));
+          }
+          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Nenhuma chave encontrada ou erro no servidor'));
+          }
+          
+          final keys = snapshot.data!;
+          return ListView.builder(
+            padding: const EdgeInsets.all(15),
+            itemCount: keys.length,
+            itemBuilder: (context, index) {
+              final k = keys[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E), 
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: k['status'] == 'active' ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
+                ),
+                child: ExpansionTile(
+                  leading: Icon(Icons.vpn_key, color: k['status'] == 'active' ? Colors.green : Colors.red),
+                  title: Text(k['key'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                  subtitle: Text('UDID: ${k['udid'] ?? "Livre"}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _actionBtn(Icons.refresh, 'RESET', () => _resetUdid(k['key']), Colors.blue),
+                          _actionBtn(Icons.pause, 'PAUSE', () => _updateStatus(k['key'], 'paused'), Colors.orange),
+                          _actionBtn(Icons.block, 'BAN', () => _updateStatus(k['key'], 'banned'), Colors.red),
+                          _actionBtn(Icons.play_arrow, 'ATIVAR', () => _updateStatus(k['key'], 'active'), Colors.green),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -350,9 +402,13 @@ class _ManagementTabState extends State<ManagementTab> {
       onTap: press,
       child: Column(
         children: [
-          Icon(icon, color: color, size: 20),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 24),
+          ),
           const SizedBox(height: 5),
-          Text(label, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
