@@ -225,7 +225,7 @@ class _KeysTabState extends State<KeysTab> {
         }),
       );
       
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         // O backend retorna 'created_keys' ou 'keys'
         final List<dynamic> generatedKeys = data['created_keys'] ?? data['keys'] ?? [];
@@ -425,3 +425,4 @@ class _ManagementTabState extends State<ManagementTab> {
   }
 }
 // Cache bust: Sat Jul 25 23:49:31 UTC 2026
+// Fix 201 success code: Sat Jul 25 23:58:06 UTC 2026
