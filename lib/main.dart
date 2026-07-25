@@ -215,36 +215,23 @@ class _KeysTabState extends State<KeysTab> {
     if (_quantityController.text.isEmpty) return;
     setState(() => _isGenerating = true);
     try {
-      // Garantir que duration e quantity sejam enviados como inteiros
+      // O TESTE REAL NA VPS MOSTROU QUE O PARÂMETRO CORRETO É 'duration_days'
       final response = await http.post(
         Uri.parse('${widget.apiUrl}/admin/key/create'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'days': _selectedDuration, // Alterado de 'duration' para 'days' conforme padrão comum de backend
-          'count': int.parse(_quantityController.text) // Alterado de 'quantity' para 'count'
+          'duration_days': _selectedDuration,
+          'quantity': int.parse(_quantityController.text)
         }),
       );
       
-      // Se falhar, tentar com os nomes de campos anteriores
-      if (response.statusCode != 200) {
-        final retryResponse = await http.post(
-          Uri.parse('${widget.apiUrl}/admin/key/create'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'duration': _selectedDuration,
-            'quantity': int.parse(_quantityController.text)
-          }),
-        );
-        
-        if (retryResponse.statusCode == 200) {
-          final data = jsonDecode(retryResponse.body);
-          _showKeysModal(data['keys']);
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ${retryResponse.statusCode}: Verifique o Backend')));
-      } else {
+      if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        _showKeysModal(data['keys']);
+        // O backend retorna 'created_keys' ou 'keys'
+        final List<dynamic> generatedKeys = data['created_keys'] ?? data['keys'] ?? [];
+        _showKeysModal(generatedKeys);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ${response.statusCode}: Verifique o Servidor')));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro de conexão com o servidor')));
@@ -387,7 +374,7 @@ class _ManagementTabState extends State<ManagementTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E1E1E), 
                   borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: k['status'] == 'active' ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
+                  border: Border.all(color: k['status'] == 'active' ? Colors.green.withOpacity(0.2) : (isPaused ? Colors.orange.withOpacity(0.2) : Colors.red.withOpacity(0.2))),
                 ),
                 child: ExpansionTile(
                   leading: Icon(Icons.vpn_key, color: k['status'] == 'active' ? Colors.green : (isPaused ? Colors.orange : Colors.red)),
@@ -400,7 +387,6 @@ class _ManagementTabState extends State<ManagementTab> {
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _actionBtn(Icons.refresh, 'RESET', () => _resetUdid(k['key']), Colors.blue),
-                          // Botão dinâmico: Se pausado mostra PLAY, se ativo mostra PAUSE
                           _actionBtn(
                             isPaused ? Icons.play_arrow : Icons.pause, 
                             isPaused ? 'DESPAUSAR' : 'PAUSAR', 
