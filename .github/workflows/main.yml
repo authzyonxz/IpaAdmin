@@ -8,9 +8,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.22.2'
       - run: flutter pub get
-      - run: flutter build ios --no-codesign --release
+      - name: Build IPA
+        run: flutter build ios --no-codesign --release --no-bitcode
       - name: Create IPA
         run: |
           mkdir -p Payload
